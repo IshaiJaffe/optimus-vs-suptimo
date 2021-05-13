@@ -1,0 +1,427 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Robot</title>
+    <style>
+        body, html {
+            padding:0;
+            margin:0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+        }
+        .arena {
+            width: 100%;
+            height: calc(100% - 100px);
+            position: relative;
+
+            background: aquamarine;
+            overflow: hidden;
+        }
+        .controls {
+            height: 100px;
+        }
+        .robot {
+            position: absolute;
+            width: 38px;
+            height: 45px;
+            background-image: url("optimus.png");
+            background-repeat: no-repeat;
+            background-size: contain;
+            background-position: 50% 50%;
+            transform-origin: 50% 50%;
+        }
+        .robot.truck {
+            background-image: url("truck.png");
+            /*width: 150px;*/
+            /*height: 101px;*/
+        }
+        .robot.right {
+            filter: invert(100%);
+        }
+        .robot.hit {
+            animation-name: robot-hit;
+            animation-duration: .33s;
+            animation-iteration-count: 6;
+        }
+        .robot.ghost {
+            animation-name: robot-ghost;
+            animation-duration: .5s;
+            animation-iteration-count: 10;
+        }
+        .fireball {
+            background-image: url("fireball.png");
+            background-repeat: no-repeat;
+            background-size: contain;
+            width: 38px;
+            height: 8px;
+            position: absolute;
+            top: -10000px;
+            left: -10000px;
+        }
+        .controls {
+            position: relative;
+        }
+        .controls button {
+            width: 80px;
+            height: 50px;
+        }
+        .left-buttons {
+            height: 100%;
+            width: 25%;
+            position: absolute;
+            left: 5%;
+            top: 0;
+        }
+        .right-buttons {
+            height: 100%;
+            width: 25%;
+            position: absolute;
+            right: 5%;
+            top: 0;
+        }
+        .left {
+
+        }
+        @keyframes robot-hit {
+            0% {
+                filter: invert(0%);
+            }
+            50% {
+                filter: invert(100%)
+            }
+            100% {
+                filter: invert(0%);
+            }
+        }
+        @keyframes robot-ghost {
+            0% {
+                opacity: 1;
+            }
+            50% {
+                opacity: 0;
+            }
+            100% {
+                opacity: 1;
+            }
+        }
+
+    </style>
+</head>
+<body>
+<div class="arena" id="arena">
+</div>
+<div class="controls" id="controls">
+    <div class="left-buttons">
+        <button class="fire">אש</button>
+        <button class="up">סע</button>
+        <button class="transform">שינוי צורה</button><br>
+        <button class="left">שמאל</button>
+        <button class="down">עצור</button>
+        <button class="right">ימינה</button>
+    </div>
+    <div class="right-buttons">
+        <button class="fire">אש</button>
+        <button class="up">סע</button>
+        <button class="transform">שינוי צורה</button><br>
+        <button class="left">שמאל</button>
+        <button class="down">עצור</button>
+        <button class="right">ימינה</button>
+    </div>
+</div>
+<script>
+    const arena = document.querySelector("#arena");
+    const elements = [];
+    const robots = [];
+    const maxX = arena.clientWidth;
+    const maxY = arena.clientHeight;
+
+    class Robot {
+        angle = 0;
+        acc = 0;
+        brake = 0;
+        _rotate = 0;
+        _speed = 0;
+        _x = 100;
+        _y = 100;
+        isTruck = false;
+
+        constructor(x, isRight) {
+            this.elm = document.createElement("div");
+            this.elm.classList.add('robot');
+            if (isRight)
+                this.elm.classList.add('right');
+            arena.appendChild(this.elm);
+            elements.push(this);
+            robots.push(this);
+            this.initialX = x;
+            this._x = x;
+            this._y = maxY / 2 - 100;
+            this.tick();
+            this.isRight = isRight;
+        }
+
+        tick() {
+            if (this.gotHit) return;
+            this._rotate += this.angle * (this.isTruck ? 1 : 3);
+            const maxSpeed = this.isTruck ? 25 : 10;
+            if (this._speed > maxSpeed)
+                this._speed = maxSpeed;
+            this._speed += (this.acc - this.brake) * (this.isTruck ? 5 : 1);
+            if (this._speed < 0)
+                this._speed = 0;
+            if (this._speed) {
+                const rad = (this._rotate- 90) * Math.PI / 180;
+                this._x += Math.cos(rad) * this._speed;
+                this._y += Math.sin(rad) * this._speed;
+            }
+            if (this._x < -75)
+                this._x = maxX + 50;
+            if (this._y < -75)
+                this._y = maxY + 50;
+            if (this._x > maxX + 50)
+                this._x = -75;
+            if (this._y > maxY + 50)
+                this._y = -75;
+            this.updateTransform();
+            this.updateStyle();
+        }
+        leftStart() {
+            this.angle = -1;
+        }
+        rightStart () {
+            this.angle = 1;
+        }
+        goStart() {
+            this.acc = .25;
+        }
+        goEnd() {
+            this.acc = 0;
+        }
+        stopStart() {
+            this.brake = 0.75;
+        }
+        stopEnd() {
+            this.brake = 0;
+        }
+        leftEnd() {
+            this.angle = 0;
+        }
+        rightEnd () {
+            this.angle = 0;
+        }
+        fire() {
+            if (this.gotHit)
+                return;
+            if (this.isTruck)
+                return;
+            new FireBall(this._rotate + 90 + (this.isRight ? 180 : 0), this._x + 25, this._y + 38, this._speed + 12, this);
+        }
+        mutate() {
+            this.isTruck = !this.isTruck;
+            this.elm.classList.toggle('truck', this.isTruck);
+        }
+        hit() {
+            this.gotHit = true;
+            this.elm.classList.add('hit');
+            setTimeout(() => {
+                this.elm.classList.remove('hit');
+                this.gotHit = false;
+                this._x = this.initialX;
+                this._y = maxY / 2 - 25;
+                this.angle = 0;
+                this._rotate = 0;
+                this._speed = 0;
+                this.acc = 0;
+                this.brake = 0;
+                this.tick();
+                this.isGhost = true;
+                this.elm.classList.add('ghost');
+                setTimeout(() => {
+                    this.isGhost = false;
+                    this.elm.classList.remove('ghost');
+                }, 5000);
+            }, 3000);
+        }
+        updateTransform() {
+            this.elm.style.transform = `rotate(${this._rotate}deg)`;
+        }
+        updateStyle() {
+            this.elm.style.top = `${this._y}px`;
+            this.elm.style.left = `${this._x}px`;
+        }
+    }
+
+    class FireBall {
+        constructor(angle, x, y, speed, robot) {
+            this.elm = document.createElement("div");
+            this.elm.classList.add('fireball');
+            arena.appendChild(this.elm);
+            elements.push(this);
+            this.angle = angle;
+            this.x = x;
+            this.y = y;
+            this.speed = speed;
+            this.robot = robot;
+            this.tick();
+        }
+        tick() {
+            const rad = (this.angle- 90) * Math.PI / 180;
+            this.x += Math.cos(rad) * this.speed;
+            this.y += Math.sin(rad) * this.speed;
+            if (this.x < -125 || this.y < - 125 || this.x > maxX + 25 || this.y > maxY + 25)
+                this.destroy();
+            robots.forEach((r) => {
+                if (r === this.robot) return;
+                if (r.gotHit) return;
+                if (r.isGhost) return;
+                if (this.x > r._x - 25 && this.x < r._x + 25 &&
+                this.y > r._y - 12 && this.y < r._y + 25) {
+                    r.hit();
+                    this.destroy();
+                }
+            });
+            this.updateTransform();
+        }
+        destroy() {
+            arena.removeChild(this.elm);
+            const index = elements.indexOf(this);
+            if (index > -1) {
+                elements.splice(index, 1);
+            }
+        }
+        updateTransform() {
+            this.elm.style.transform = `rotate(${this.angle + 90}deg)`;
+            this.elm.style.top = `${this.y}px`;
+            this.elm.style.left = `${this.x}px`;
+        }
+    }
+
+    const optimus2 = new Robot(25);
+    const optimus = new Robot(maxX - 100, true);
+    document.addEventListener('keydown', (e) => {
+        e.preventDefault();
+        console.log(e.keyCode);
+        switch (e.keyCode) {
+            // right
+            case 39:
+                optimus.rightStart();
+                break;
+            case 37:
+                optimus.leftStart();
+                break;
+            case 38:
+                optimus.goStart();
+                break;
+            case 40:
+                optimus.stopStart();
+                break;
+            case 18:
+                optimus.fire();
+                break;
+            case 93:
+                optimus.mutate();
+                break;
+            case 68:
+                optimus2.rightStart();
+                break;
+            case 65:
+                optimus2.leftStart();
+                break;
+            case 87:
+                optimus2.goStart();
+                break;
+            case 83:
+                optimus2.stopStart();
+                break;
+            case 9:
+                optimus2.fire();
+                break;
+            case 81:
+                optimus2.mutate();
+                break;
+        }
+    });
+    document.addEventListener('keyup', (e) => {
+        e.preventDefault();
+
+        switch (e.keyCode) {
+            // right
+            case 39:
+                optimus.rightEnd();
+                break;
+            case 37:
+                optimus.leftEnd();
+                break;
+            case 38:
+                optimus.goEnd();
+                break;
+            case 40:
+                optimus.stopEnd();
+                break;
+            case 68:
+                optimus2.rightEnd();
+                break;
+            case 65:
+                optimus2.leftEnd();
+                break;
+            case 87:
+                optimus2.goEnd();
+                break;
+            case 83:
+                optimus2.stopEnd();
+                break;
+        }
+    });
+    Array.from(document.querySelectorAll('button')).forEach((button) => {
+        const autoBot = button.parentElement.classList.contains("left-buttons") ? optimus2 : optimus;
+        const startEvent = "mousedown";
+        //const startEvent = "touchstart";
+        const endEvent = "mouseup";
+        //const endEvent = "touchendt";
+        button.addEventListener(startEvent, (e) => {
+             switch (button.className) {
+                 case "left":
+                     autoBot.leftStart();
+                     break;
+                 case "right":
+                     autoBot.rightStart();
+                     break;
+                 case "up":
+                     autoBot.goStart();
+                     break;
+                 case "down":
+                     autoBot.stopStart();
+                     break;
+                 case "fire":
+                     autoBot.fire();
+                     break;
+                 case "transform":
+                     autoBot.mutate();
+                     break;
+             }
+        });
+        button.addEventListener(endEvent, (e) => {
+            switch (button.className) {
+                case "left":
+                    autoBot.leftEnd();
+                    break;
+                case "right":
+                    autoBot.rightEnd();
+                    break;
+                case "up":
+                    autoBot.goEnd();
+                    break;
+                case "down":
+                    autoBot.stopEnd();
+                    break;
+            }
+        });
+    });
+    setInterval(() => {
+        elements.forEach((e) => e.tick());
+    }, 50);
+</script>
+</body>
+</html>
