@@ -376,10 +376,10 @@
     });
     Array.from(document.querySelectorAll('button')).forEach((button) => {
         const autoBot = button.parentElement.classList.contains("left-buttons") ? optimus2 : optimus;
-        const startEvent = "mousedown";
-        //const startEvent = "touchstart";
-        const endEvent = "mouseup";
-        //const endEvent = "touchendt";
+        //const startEvent = "mousedown";
+        const startEvent = "touchstart";
+        //const endEvent = "mouseup";
+        const endEvent = "touchend";
         button.addEventListener(startEvent, (e) => {
              switch (button.className) {
                  case "left":
